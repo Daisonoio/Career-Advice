@@ -27,6 +27,11 @@ docker-compose.override.yml
 Thumbs.db
 *.swp
 
+## System / installer files
+*.deb
+*.rpm
+*.pkg
+
 ## Test results
 TestResults/
 coverage/
