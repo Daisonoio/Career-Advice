@@ -129,12 +129,13 @@ public class AnthropicOrchestrator : IAIOrchestrator
         {
             Model = Model,
             MaxTokens = maxTokens,
-            System = [new SystemMessage(system)],
+            SystemMessage = system,
             Messages = [new Message(RoleType.User, prompt)]
         };
 
         var response = await _client.Messages.GetClaudeMessageAsync(request, ct);
-        return response.Content[0].Text;
+        var textContent = response.Content.OfType<TextContent>().FirstOrDefault();
+        return textContent?.Text ?? string.Empty;
     }
 
     private static List<string> ParseStringList(JsonElement root, string propertyName)
