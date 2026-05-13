@@ -48,11 +48,11 @@ public class GetLatestRecommendationQueryHandler : IRequestHandler<GetLatestReco
             Paths: paths);
     }
 
-    private static List<string> DeserializeSkillGaps(string skillGapsJson)
+    private static List<PrioritizedSkillGapDto> DeserializeSkillGaps(string skillGapsJson)
     {
         try
         {
-            return JsonSerializer.Deserialize<List<string>>(skillGapsJson) ?? [];
+            return JsonSerializer.Deserialize<List<PrioritizedSkillGapDto>>(skillGapsJson) ?? [];
         }
         catch
         {

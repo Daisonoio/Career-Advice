@@ -3,6 +3,7 @@ using Aegis.Application.Common.Behaviors;
 using Aegis.Application.Interfaces;
 using Aegis.Application.Market.Services;
 using Aegis.Application.Profile.Services;
+using Aegis.Application.Recommendations.Services;
 using Aegis.API.Middleware;
 using Aegis.Domain.Interfaces;
 using Aegis.Infrastructure.AI;
@@ -91,6 +92,7 @@ builder.Services.AddScoped<SeniorityScorer>();
 builder.Services.AddScoped<KpiComputationService>();
 builder.Services.AddScoped<AdaptiveInterviewService>();
 builder.Services.AddScoped<ProfileEnrichmentService>();
+builder.Services.AddScoped<SkillPrioritizationService>();
 
 // ── ESCO Skill Sync ───────────────────────────────────────────────────────────
 var escoBaseUrl     = builder.Configuration["EscoSync:BaseUrl"] ?? "https://ec.europa.eu/esco/api/";

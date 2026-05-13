@@ -19,9 +19,18 @@ public record RecommendationPathDto(
     string TransitionDifficulty,
     int? EstimatedMonths,
     double? SkillOverlapPct,
-    List<string> SkillGaps,
+    List<PrioritizedSkillGapDto> SkillGaps,
     double? MarketDemandScore,
     double? AIRiskScore,
     double? GrowthMomentum,
     double? Confidence,
     string? LlmRationale);
+
+public record PrioritizedSkillGapDto(
+    string SkillName,
+    string SkillCanonical,
+    string Type,
+    double SkillRoi,
+    double? SalaryPremiumPct,
+    int EstimatedWeeks,
+    string LearningDifficulty);
