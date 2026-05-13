@@ -147,6 +147,22 @@ builder.Services.AddHangfireServer();
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
 builder.Services.AddRateLimiter(opts =>
 {
+    // Global baseline: 200 req/min per IP — safety net for all endpoints.
+    // Applied automatically to every request; no [EnableRateLimiting] needed.
+    opts.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString()
+                          ?? ctx.Request.Headers.Host.ToString(),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit        = 200,
+                Window             = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit         = 0
+            }));
+
+    // "fixed" — 100 req/min per IP: general API endpoints.
     opts.AddFixedWindowLimiter("fixed", limiterOpts =>
     {
         limiterOpts.PermitLimit = 100;
@@ -155,12 +171,14 @@ builder.Services.AddRateLimiter(opts =>
         limiterOpts.QueueLimit = 10;
     });
 
+    // "auth" — 10 req/min per IP: credential endpoints (login, register, refresh).
+    // Prevents brute-force and credential-stuffing attacks.
     opts.AddFixedWindowLimiter("auth", limiterOpts =>
     {
         limiterOpts.PermitLimit = 10;
         limiterOpts.Window = TimeSpan.FromMinutes(1);
         limiterOpts.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        limiterOpts.QueueLimit = 5;
+        limiterOpts.QueueLimit = 0;
     });
 
     opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
