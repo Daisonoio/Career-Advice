@@ -41,4 +41,18 @@ public class MonitoringController : BaseApiController
         await Mediator.Send(new MarkAlertReadCommand(CurrentUserId, alertId), ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// Get the competitiveness history for the current user (up to 12 weekly snapshots).
+    /// </summary>
+    [HttpGet("competitiveness-history")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetCompetitivenessHistory(
+        [FromQuery] int limit = 12,
+        CancellationToken ct = default)
+    {
+        var result = await Mediator.Send(new GetCompetitivenessHistoryQuery(CurrentUserId, limit), ct);
+        return Ok(result);
+    }
 }

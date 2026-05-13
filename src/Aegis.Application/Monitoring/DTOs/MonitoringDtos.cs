@@ -17,3 +17,13 @@ public record AlertResponse(
     string Severity,
     DateTime CreatedAt,
     bool IsRead);
+
+public record CompetitivenessHistoryResponse(
+    List<MonitoringSnapshotDto> Snapshots);
+
+public record MonitoringSnapshotDto(
+    DateTime SnapshotDate,
+    double? CompetitiveScore,
+    double? MarketFitScore,
+    double? SalaryPercentile,
+    double? FutureRiskScore);

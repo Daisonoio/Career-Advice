@@ -2,6 +2,7 @@ using Aegis.Application.Assessment.Services;
 using Aegis.Application.Common.Behaviors;
 using Aegis.Application.Interfaces;
 using Aegis.Application.Market.Services;
+using Aegis.Application.Monitoring.Services;
 using Aegis.Application.Profile.Services;
 using Aegis.Application.Recommendations.Services;
 using Aegis.API.Middleware;
@@ -85,6 +86,7 @@ builder.Services.AddScoped<IMarketKpiRepository, MarketKpiRepository>();
 builder.Services.AddScoped<ISkillRepository, SkillRepository>();
 builder.Services.AddScoped<IRecommendationRepository, RecommendationRepository>();
 builder.Services.AddScoped<IAlertRepository, AlertRepository>();
+builder.Services.AddScoped<IMonitoringSnapshotRepository, MonitoringSnapshotRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
 // ── Application Services ──────────────────────────────────────────────────────
@@ -93,6 +95,9 @@ builder.Services.AddScoped<KpiComputationService>();
 builder.Services.AddScoped<AdaptiveInterviewService>();
 builder.Services.AddScoped<ProfileEnrichmentService>();
 builder.Services.AddScoped<SkillPrioritizationService>();
+builder.Services.AddScoped<AlertingService>();
+builder.Services.AddScoped<AlertingJob>();
+builder.Services.AddScoped<MonitoringSnapshotJob>();
 
 // ── ESCO Skill Sync ───────────────────────────────────────────────────────────
 var escoBaseUrl     = builder.Configuration["EscoSync:BaseUrl"] ?? "https://ec.europa.eu/esco/api/";
@@ -270,11 +275,26 @@ if (enableHangfireDashboard)
     app.MapHangfireDashboard("/hangfire");
 
 // ── Recurring jobs ────────────────────────────────────────────────────────────
-var escoCron = builder.Configuration["EscoSync:DailyRunCron"] ?? "0 2 * * *";
+var escoCron     = builder.Configuration["EscoSync:DailyRunCron"]         ?? "0 2 * * *";
+var alertingCron = builder.Configuration["Jobs:AlertingCron"]              ?? "0 8 * * *";
+var snapshotCron = builder.Configuration["Jobs:MonitoringSnapshotCron"]    ?? "0 3 * * 0";
+
 RecurringJob.AddOrUpdate<SkillCatalogSyncJob>(
     recurringJobId: "skill-catalog-sync",
     methodCall:     job => job.ExecuteAsync(CancellationToken.None),
     cronExpression: escoCron,
+    new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+RecurringJob.AddOrUpdate<AlertingJob>(
+    recurringJobId: "alerting",
+    methodCall:     job => job.ExecuteAsync(CancellationToken.None),
+    cronExpression: alertingCron,
+    new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+RecurringJob.AddOrUpdate<MonitoringSnapshotJob>(
+    recurringJobId: "monitoring-snapshot",
+    methodCall:     job => job.ExecuteAsync(CancellationToken.None),
+    cronExpression: snapshotCron,
     new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
 
 app.Run();

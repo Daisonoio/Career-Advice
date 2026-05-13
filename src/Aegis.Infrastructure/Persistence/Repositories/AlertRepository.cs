@@ -1,4 +1,5 @@
 using Aegis.Domain.Entities;
+using Aegis.Domain.Enums;
 using Aegis.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,6 +39,13 @@ public class AlertRepository : IAlertRepository
         await _context.UserAlerts.AddAsync(alert, ct);
         await _context.SaveChangesAsync(ct);
     }
+
+    public async Task<UserAlert?> GetLatestByUserAndTypeAsync(
+        int userId, AlertType alertType, CancellationToken ct = default)
+        => await _context.UserAlerts
+            .Where(a => a.UserId == userId && a.AlertType == alertType)
+            .OrderByDescending(a => a.CreatedAt)
+            .FirstOrDefaultAsync(ct);
 
     public async Task MarkAsReadAsync(int alertId, CancellationToken ct = default)
     {

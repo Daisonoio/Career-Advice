@@ -54,4 +54,9 @@ public class UserRepository : IUserRepository
 
         await _context.SaveChangesAsync(ct);
     }
+
+    public async Task<List<int>> GetAllUserIdsWithProfileAsync(CancellationToken ct = default)
+        => await _context.UserProfiles
+            .Select(p => p.UserId)
+            .ToListAsync(ct);
 }
