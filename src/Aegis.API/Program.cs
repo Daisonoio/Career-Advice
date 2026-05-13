@@ -7,6 +7,8 @@ using Aegis.API.Middleware;
 using Aegis.Domain.Interfaces;
 using Aegis.Infrastructure.AI;
 using Aegis.Infrastructure.Auth;
+using Aegis.Infrastructure.ExternalData.Esco;
+using Aegis.Infrastructure.Jobs;
 using Aegis.Infrastructure.Persistence;
 using Aegis.Infrastructure.Persistence.Repositories;
 using FluentValidation;
@@ -89,6 +91,31 @@ builder.Services.AddScoped<SeniorityScorer>();
 builder.Services.AddScoped<KpiComputationService>();
 builder.Services.AddScoped<AdaptiveInterviewService>();
 builder.Services.AddScoped<ProfileEnrichmentService>();
+
+// ── ESCO Skill Sync ───────────────────────────────────────────────────────────
+var escoBaseUrl     = builder.Configuration["EscoSync:BaseUrl"] ?? "https://ec.europa.eu/esco/api/";
+var escoDelayMs     = builder.Configuration.GetValue<int>("EscoSync:RequestDelayMs", 250);
+
+builder.Services.AddHttpClient<EscoApiClient>(client =>
+{
+    client.BaseAddress = new Uri(escoBaseUrl);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+    client.Timeout     = TimeSpan.FromSeconds(30);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+});
+
+builder.Services.AddTransient<EscoApiClient>(sp =>
+{
+    var factory = sp.GetRequiredService<IHttpClientFactory>();
+    var http    = factory.CreateClient(nameof(EscoApiClient));
+    var logger  = sp.GetRequiredService<ILogger<EscoApiClient>>();
+    return new EscoApiClient(http, logger, escoDelayMs);
+});
+
+builder.Services.AddSingleton<EscoSkillMapper>();
+builder.Services.AddScoped<SkillCatalogSyncJob>();
 
 // ── Redis / Memory Cache ──────────────────────────────────────────────────────
 var redisConnection = builder.Configuration.GetConnectionString("Redis");
@@ -239,6 +266,14 @@ app.MapHealthChecks("/health");
 var enableHangfireDashboard = builder.Configuration.GetValue<bool>("Hangfire:EnableDashboard");
 if (enableHangfireDashboard)
     app.MapHangfireDashboard("/hangfire");
+
+// ── Recurring jobs ────────────────────────────────────────────────────────────
+var escoCron = builder.Configuration["EscoSync:DailyRunCron"] ?? "0 2 * * *";
+RecurringJob.AddOrUpdate<SkillCatalogSyncJob>(
+    recurringJobId: "skill-catalog-sync",
+    methodCall:     job => job.ExecuteAsync(CancellationToken.None),
+    cronExpression: escoCron,
+    new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
 
 app.Run();
 

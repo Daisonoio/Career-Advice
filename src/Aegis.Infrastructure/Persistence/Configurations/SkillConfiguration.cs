@@ -17,6 +17,9 @@ public class SkillConfiguration : IEntityTypeConfiguration<Skill>
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(s => s.NameIt)
+            .HasMaxLength(200);
+
         builder.Property(s => s.CanonicalName)
             .IsRequired()
             .HasMaxLength(200);
@@ -31,9 +34,29 @@ public class SkillConfiguration : IEntityTypeConfiguration<Skill>
 
         builder.Property(s => s.ParentId);
 
-        // EmbeddingVector with pgvector
+        // pgvector column
         builder.Property(s => s.EmbeddingVector)
             .HasColumnType("vector(1536)");
+
+        // Sync metadata
+        builder.Property(s => s.IsSystemSkill)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(s => s.SourceType)
+            .HasMaxLength(50);
+
+        builder.Property(s => s.SourceExternalId)
+            .HasMaxLength(500);
+
+        builder.HasIndex(s => s.SourceExternalId)
+            .IsUnique()
+            .HasFilter("source_external_id IS NOT NULL");
+
+        builder.Property(s => s.ConfidenceScore)
+            .HasDefaultValue(1.0);
+
+        builder.Property(s => s.LastSyncedAt);
 
         builder.HasOne(s => s.Category)
             .WithMany()
