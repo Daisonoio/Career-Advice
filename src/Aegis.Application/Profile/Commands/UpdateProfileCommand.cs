@@ -105,6 +105,9 @@ public class UpdateProfileCommandHandler : IRequestHandler<UpdateProfileCommand,
             CareerGoals: profile.CareerGoals,
             ProfileCompleteness: profile.ProfileCompleteness,
             SubscriptionTier: user.SubscriptionTier.ToString(),
-            Skills: skills);
+            Skills: skills,
+            SalaryPercentileForCurrentRole: null,
+            StagnationRiskScore: null,
+            QuickWins: []);
     }
 }

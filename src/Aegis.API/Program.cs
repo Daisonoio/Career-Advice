@@ -2,6 +2,7 @@ using Aegis.Application.Assessment.Services;
 using Aegis.Application.Common.Behaviors;
 using Aegis.Application.Interfaces;
 using Aegis.Application.Market.Services;
+using Aegis.Application.Profile.Services;
 using Aegis.API.Middleware;
 using Aegis.Domain.Interfaces;
 using Aegis.Infrastructure.AI;
@@ -87,6 +88,7 @@ builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<SeniorityScorer>();
 builder.Services.AddScoped<KpiComputationService>();
 builder.Services.AddScoped<AdaptiveInterviewService>();
+builder.Services.AddScoped<ProfileEnrichmentService>();
 
 // ── Redis / Memory Cache ──────────────────────────────────────────────────────
 var redisConnection = builder.Configuration.GetConnectionString("Redis");

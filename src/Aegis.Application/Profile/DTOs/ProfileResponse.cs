@@ -15,7 +15,10 @@ public record ProfileResponse(
     string? CareerGoals,
     double ProfileCompleteness,
     string SubscriptionTier,
-    List<SkillResponse> Skills);
+    List<SkillResponse> Skills,
+    double? SalaryPercentileForCurrentRole,
+    double? StagnationRiskScore,
+    List<QuickWinResponse> QuickWins);
 
 public record SkillResponse(
     int SkillId,
@@ -25,3 +28,9 @@ public record SkillResponse(
     int SelfRatedLevel,
     double? YearsExperience,
     bool IsPrimary);
+
+public record QuickWinResponse(
+    string Action,
+    string ImpactLevel,
+    int EstimatedWeeks,
+    string Rationale);

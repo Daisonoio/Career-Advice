@@ -109,7 +109,11 @@ public class AegisDbContext : DbContext
             new { Id = 37, Name = "Team Leadership", CanonicalName = "team-leadership", CategoryId = (int?)8, ParentId = (int?)null, Aliases = emptyAliases, EmbeddingVector = (float[]?)null, CreatedAt = now, UpdatedAt = now },
             new { Id = 38, Name = "System Design", CanonicalName = "system-design", CategoryId = (int?)8, ParentId = (int?)null, Aliases = emptyAliases, EmbeddingVector = (float[]?)null, CreatedAt = now, UpdatedAt = now },
             new { Id = 39, Name = "Code Review", CanonicalName = "code-review", CategoryId = (int?)8, ParentId = (int?)null, Aliases = emptyAliases, EmbeddingVector = (float[]?)null, CreatedAt = now, UpdatedAt = now },
-            new { Id = 40, Name = "Mentoring", CanonicalName = "mentoring", CategoryId = (int?)8, ParentId = (int?)null, Aliases = emptyAliases, EmbeddingVector = (float[]?)null, CreatedAt = now, UpdatedAt = now }
+            new { Id = 40, Name = "Mentoring", CanonicalName = "mentoring", CategoryId = (int?)8, ParentId = (int?)null, Aliases = emptyAliases, EmbeddingVector = (float[]?)null, CreatedAt = now, UpdatedAt = now },
+
+            // Additional skills — common in .NET ecosystem and roadmap phases
+            new { Id = 41, Name = "SQL Server", CanonicalName = "sql-server", CategoryId = (int?)6, ParentId = (int?)null, Aliases = emptyAliases, EmbeddingVector = (float[]?)null, CreatedAt = now, UpdatedAt = now },
+            new { Id = 42, Name = "OpenTelemetry", CanonicalName = "opentelemetry", CategoryId = (int?)4, ParentId = (int?)null, Aliases = emptyAliases, EmbeddingVector = (float[]?)null, CreatedAt = now, UpdatedAt = now }
         );
     }
 
