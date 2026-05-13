@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**", "feature/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: aegis_test
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore Aegis.sln
+
+      - name: Build
+        run: dotnet build Aegis.sln --no-restore -c Release
+
+      - name: Unit Tests
+        run: |
+          dotnet test tests/Aegis.Domain.Tests/Aegis.Domain.Tests.csproj --no-build -c Release
+          dotnet test tests/Aegis.Application.Tests/Aegis.Application.Tests.csproj --no-build -c Release
+
+      - name: Integration Tests
+        env:
+          ConnectionStrings__Postgres: Host=localhost;Database=aegis_test;Username=aegis;Password=test_password
+        run: dotnet test tests/Aegis.API.Integration.Tests/Aegis.API.Integration.Tests.csproj --no-build -c Release

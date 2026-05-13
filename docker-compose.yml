@@ -1,0 +1,66 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: aegis
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      CLICKHOUSE_DB: aegis_analytics
+      CLICKHOUSE_USER: aegis
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Aegis.API/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ConnectionStrings__Postgres=Host=postgres;Database=aegis;Username=aegis;Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379
+      - Jwt__Key=${JWT_KEY}
+      - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
+      - OpenAI__ApiKey=${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  clickhouse_data:
