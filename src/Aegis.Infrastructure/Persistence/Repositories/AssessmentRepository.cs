@@ -22,7 +22,7 @@ public class AssessmentRepository : IAssessmentRepository
     public async Task<Assessment?> GetActiveForUserAsync(int userId, CancellationToken ct = default)
         => await _context.Assessments
             .Include(a => a.Questions)
-            .Where(a => a.UserId == userId && a.CompletedAt == null)
+            .Where(a => a.UserId == userId && a.CompletedAt == null && a.AbandonedAt == null)
             .OrderByDescending(a => a.CreatedAt)
             .FirstOrDefaultAsync(ct);
 

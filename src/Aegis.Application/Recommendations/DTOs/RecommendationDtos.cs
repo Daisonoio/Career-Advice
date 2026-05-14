@@ -34,3 +34,13 @@ public record PrioritizedSkillGapDto(
     double? SalaryPremiumPct,
     int EstimatedWeeks,
     string LearningDifficulty);
+
+public record RecommendationSummaryDto(
+    int Id,
+    DateTime GeneratedAt,
+    double MarketFitScore,
+    double FutureRiskScore,
+    double CompetitiveScore,
+    double SalaryPercentile,
+    double GenerationConfidence,
+    List<string> TopRoles);

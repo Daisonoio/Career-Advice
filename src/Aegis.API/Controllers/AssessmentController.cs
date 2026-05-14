@@ -62,6 +62,18 @@ public class AssessmentController : BaseApiController
         var result = await Mediator.Send(new GetAssessmentHistoryQuery(CurrentUserId), ct);
         return Ok(result);
     }
+
+    /// <summary>Abandon an active assessment, unblocking a future start.</summary>
+    [HttpDelete("{assessmentId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Abandon(int assessmentId, CancellationToken ct)
+    {
+        await Mediator.Send(new AbandonAssessmentCommand(CurrentUserId, assessmentId), ct);
+        return NoContent();
+    }
 }
 
 public record SubmitAnswerRequest(int QuestionId, string Answer);

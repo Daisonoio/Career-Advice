@@ -1,21 +1,13 @@
 using Aegis.Application.Profile.DTOs;
+using Aegis.Application.Recommendations.Services;
 using Aegis.Domain.Entities;
 
 namespace Aegis.Application.Profile.Services;
 
 public class ProfileEnrichmentService
 {
-    private static readonly Dictionary<string, List<string>> RoleRequiredSkills = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Backend Engineer"]    = ["csharp", "dotnet-aspnet-core", "rest-apis", "postgresql", "docker"],
-        ["Backend Developer"]   = ["csharp", "dotnet-aspnet-core", "rest-apis", "postgresql", "docker"],
-        ["Platform Engineer"]   = ["kubernetes", "docker", "terraform", "aws", "cicd"],
-        ["Software Architect"]  = ["microservices", "event-driven", "ddd", "cqrs", "system-design"],
-        ["DevOps Engineer"]     = ["kubernetes", "terraform", "cicd", "prometheus-grafana", "ansible"],
-        ["AI/ML Engineer"]      = ["machine-learning", "python", "llm-integration", "mlops", "tensorflow-pytorch"],
-        ["Tech Lead"]           = ["team-leadership", "system-design", "code-review", "mentoring", "microservices"],
-        ["Full Stack Developer"] = ["csharp", "dotnet-aspnet-core", "typescript", "rest-apis", "postgresql"],
-    };
+    // Single source of truth: SkillPrioritizationService.RoleRequiredSkills (10 roles × 10 skills).
+    // Previously this class maintained its own 8-role × 5-skill copy that was already diverging.
 
     public double? ComputeSalaryPercentile(decimal? salaryMidpoint, MarketKpi? roleKpi)
     {
@@ -49,7 +41,6 @@ public class ProfileEnrichmentService
     {
         double risk = 0.0;
 
-        // Signal 1: role growth momentum — ruolo in declino aumenta il rischio
         var growth = roleKpi?.GrowthMomentum ?? 5.0;
         risk += growth switch
         {
@@ -58,7 +49,6 @@ public class ProfileEnrichmentService
             _     => 0.0
         };
 
-        // Signal 2: anni di esperienza senza segnali di progressione
         risk += profile.YearsExperience switch
         {
             >= 6 => 2.5,
@@ -67,7 +57,6 @@ public class ProfileEnrichmentService
             _    => 0.0
         };
 
-        // Signal 3: numero skill primarie dichiarate
         var primaryCount = profile.Skills.Count(s => s.IsPrimary);
         risk += primaryCount switch
         {
@@ -77,7 +66,6 @@ public class ProfileEnrichmentService
             _ => 0.0
         };
 
-        // Signal 4: livello medio sulle skill primarie
         var primarySkills = profile.Skills.Where(s => s.IsPrimary).ToList();
         if (primarySkills.Count > 0)
         {
@@ -106,7 +94,7 @@ public class ProfileEnrichmentService
             .Where(s => s.Length > 0)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Quick Win 1: approfondisci la skill primaria con livello più basso
+        // Quick Win 1: deepen the weakest primary skill
         var weakPrimary = profile.Skills
             .Where(s => s.IsPrimary && s.SelfRatedLevel <= 2 && s.Skill?.Name is not null)
             .MinBy(s => s.SelfRatedLevel);
@@ -120,9 +108,10 @@ public class ProfileEnrichmentService
                 Rationale: $"{weakPrimary.Skill.Name} è una tua skill primaria con livello basso. Aumentarla migliora direttamente la seniority percepita nelle interviste."));
         }
 
-        // Quick Win 2: prima skill richiesta per il ruolo che manca nel profilo
+        // Quick Win 2: first missing skill from the canonical role requirements
         if (profile.CurrentRole is not null
-            && RoleRequiredSkills.TryGetValue(profile.CurrentRole, out var requiredSkills))
+            && SkillPrioritizationService.RoleRequiredSkills.TryGetValue(
+                   profile.CurrentRole, out var requiredSkills))
         {
             var missingRequired = requiredSkills.FirstOrDefault(s => !userCanonicals.Contains(s));
             if (missingRequired is not null)
@@ -135,7 +124,7 @@ public class ProfileEnrichmentService
             }
         }
 
-        // Quick Win 3: gap salariale rispetto alla mediana, oppure dati mancanti
+        // Quick Win 3: salary gap or missing salary data
         if (profile.SalaryExpectation is null)
         {
             wins.Add(new QuickWinResponse(

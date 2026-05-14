@@ -30,4 +30,16 @@ public class RecommendationsController : BaseApiController
         if (result is null) return NotFound(new { message = "No recommendations found for this user." });
         return Ok(result);
     }
+
+    /// <summary>Get the recommendation history for the current user (newest first).</summary>
+    [HttpGet("history")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] int limit = 10,
+        CancellationToken ct = default)
+    {
+        var result = await Mediator.Send(new GetRecommendationHistoryQuery(CurrentUserId, limit), ct);
+        return Ok(result);
+    }
 }

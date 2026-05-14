@@ -8,6 +8,7 @@ using Aegis.Domain.Interfaces;
 using Aegis.Domain.ValueObjects;
 using MediatR;
 using System.Text.Json;
+using UserMonitoringSnapshot = Aegis.Domain.Entities.UserMonitoringSnapshot;
 
 namespace Aegis.Application.Recommendations.Commands;
 
@@ -19,6 +20,7 @@ public class GenerateRecommendationCommandHandler : IRequestHandler<GenerateReco
     private readonly IAssessmentRepository _assessmentRepository;
     private readonly IMarketKpiRepository _kpiRepository;
     private readonly IRecommendationRepository _recommendationRepository;
+    private readonly IMonitoringSnapshotRepository _snapshotRepository;
     private readonly IAIOrchestrator _aiOrchestrator;
     private readonly SkillPrioritizationService _skillPrioritization;
     private readonly ProfileEnrichmentService _enrichment;
@@ -28,6 +30,7 @@ public class GenerateRecommendationCommandHandler : IRequestHandler<GenerateReco
         IAssessmentRepository assessmentRepository,
         IMarketKpiRepository kpiRepository,
         IRecommendationRepository recommendationRepository,
+        IMonitoringSnapshotRepository snapshotRepository,
         IAIOrchestrator aiOrchestrator,
         SkillPrioritizationService skillPrioritization,
         ProfileEnrichmentService enrichment)
@@ -36,6 +39,7 @@ public class GenerateRecommendationCommandHandler : IRequestHandler<GenerateReco
         _assessmentRepository = assessmentRepository;
         _kpiRepository = kpiRepository;
         _recommendationRepository = recommendationRepository;
+        _snapshotRepository = snapshotRepository;
         _aiOrchestrator = aiOrchestrator;
         _skillPrioritization = skillPrioritization;
         _enrichment = enrichment;
@@ -66,6 +70,10 @@ public class GenerateRecommendationCommandHandler : IRequestHandler<GenerateReco
 
         foreach (var role in SkillPrioritizationService.RoleRequiredSkills.Keys)
         {
+            // Skip the user's current role — recommending where they already are is not useful.
+            if (string.Equals(role, currentRole, StringComparison.OrdinalIgnoreCase))
+                continue;
+
             var kpi = await _kpiRepository.GetLatestAsync(null, role, null, cancellationToken);
 
             var requiredSkills = SkillPrioritizationService.RoleRequiredSkills[role];
@@ -226,6 +234,23 @@ public class GenerateRecommendationCommandHandler : IRequestHandler<GenerateReco
         }
 
         await _recommendationRepository.UpdateAsync(recommendation, cancellationToken);
+
+        // Persist an immediate snapshot so the competitiveness-history chart
+        // reflects the new scores without waiting for the weekly job.
+        try
+        {
+            var snapshot = UserMonitoringSnapshot.Create(
+                userId:           request.UserId,
+                competitiveScore: competitiveScore,
+                marketFitScore:   marketFitScore,
+                salaryPercentile: salaryPercentile,
+                futureRiskScore:  futureRiskScore);
+            await _snapshotRepository.AddAsync(snapshot, cancellationToken);
+        }
+        catch
+        {
+            // Non-critical — history chart will catch up on the weekly job.
+        }
 
         return new RecommendationResponse(
             Id:                    recommendation.Id,

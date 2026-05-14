@@ -44,5 +44,15 @@ public class Assessment : Entity
         Touch();
     }
 
-    public bool IsComplete => CompletedAt.HasValue;
+    public DateTime? AbandonedAt { get; private set; }
+    public bool IsComplete  => CompletedAt.HasValue;
+    public bool IsAbandoned => AbandonedAt.HasValue;
+
+    public void Abandon()
+    {
+        if (IsComplete)
+            throw new InvalidOperationException("Cannot abandon a completed assessment.");
+        AbandonedAt = DateTime.UtcNow;
+        Touch();
+    }
 }
