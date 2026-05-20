@@ -9,6 +9,7 @@ using Aegis.API.Middleware;
 using Aegis.Domain.Interfaces;
 using Aegis.Infrastructure.AI;
 using Aegis.Infrastructure.Auth;
+using Aegis.Infrastructure.ExternalData.Adzuna;
 using Aegis.Infrastructure.ExternalData.Esco;
 using Aegis.Infrastructure.Jobs;
 using Aegis.Infrastructure.Persistence;
@@ -98,6 +99,33 @@ builder.Services.AddScoped<SkillPrioritizationService>();
 builder.Services.AddScoped<AlertingService>();
 builder.Services.AddScoped<AlertingJob>();
 builder.Services.AddScoped<MonitoringSnapshotJob>();
+
+// ── Adzuna Market Data ────────────────────────────────────────────────────────
+var adzunaSettings = builder.Configuration.GetSection("Adzuna").Get<AdzunaSettings>()
+    ?? throw new InvalidOperationException("Adzuna configuration section is required.");
+
+builder.Services.AddSingleton(adzunaSettings);
+
+builder.Services.AddHttpClient(nameof(AdzunaApiClient), client =>
+{
+    client.BaseAddress = new Uri(adzunaSettings.BaseUrl);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+    client.Timeout = TimeSpan.FromSeconds(30);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+});
+
+builder.Services.AddTransient<AdzunaApiClient>(sp =>
+{
+    var factory   = sp.GetRequiredService<IHttpClientFactory>();
+    var http      = factory.CreateClient(nameof(AdzunaApiClient));
+    var settings  = sp.GetRequiredService<AdzunaSettings>();
+    var logger    = sp.GetRequiredService<ILogger<AdzunaApiClient>>();
+    return new AdzunaApiClient(http, settings, logger);
+});
+
+builder.Services.AddScoped<KpiIngestionJob>();
 
 // ── ESCO Skill Sync ───────────────────────────────────────────────────────────
 var escoBaseUrl     = builder.Configuration["EscoSync:BaseUrl"] ?? "https://ec.europa.eu/esco/api/";
@@ -293,9 +321,10 @@ if (enableHangfireDashboard)
     app.MapHangfireDashboard("/hangfire");
 
 // ── Recurring jobs ────────────────────────────────────────────────────────────
-var escoCron     = builder.Configuration["EscoSync:DailyRunCron"]         ?? "0 2 * * *";
-var alertingCron = builder.Configuration["Jobs:AlertingCron"]              ?? "0 8 * * *";
-var snapshotCron = builder.Configuration["Jobs:MonitoringSnapshotCron"]    ?? "0 3 * * 0";
+var escoCron         = builder.Configuration["EscoSync:DailyRunCron"]         ?? "0 2 * * *";
+var alertingCron     = builder.Configuration["Jobs:AlertingCron"]              ?? "0 8 * * *";
+var snapshotCron     = builder.Configuration["Jobs:MonitoringSnapshotCron"]    ?? "0 3 * * 0";
+var kpiIngestionCron = builder.Configuration["Jobs:KpiIngestionCron"]          ?? "0 4 * * 1";
 
 RecurringJob.AddOrUpdate<SkillCatalogSyncJob>(
     recurringJobId: "skill-catalog-sync",
@@ -313,6 +342,12 @@ RecurringJob.AddOrUpdate<MonitoringSnapshotJob>(
     recurringJobId: "monitoring-snapshot",
     methodCall:     job => job.ExecuteAsync(CancellationToken.None),
     cronExpression: snapshotCron,
+    new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+RecurringJob.AddOrUpdate<KpiIngestionJob>(
+    recurringJobId: "kpi-ingestion",
+    methodCall:     job => job.ExecuteAsync(CancellationToken.None),
+    cronExpression: kpiIngestionCron,
     new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
 
 app.Run();

@@ -72,6 +72,12 @@ public class MarketKpi : Entity
         Touch();
     }
 
+    public void SetGrowthMomentum(double score)
+    {
+        GrowthMomentum = Math.Round(score, 2);
+        Touch();
+    }
+
     public void SetConfidence(double confidence)
     {
         DataConfidence = confidence;

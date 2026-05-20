@@ -47,6 +47,10 @@ public class KpiComputationService
         var aiRisk = ComputeAIRisk(data.AutomationProbability, data.CommoditizationIndex);
         kpi.SetAIRisk(aiRisk, data.AutomationProbability);
 
+        // KPI-05: Growth Momentum derived from YoY job-count change
+        var growthMomentum = ComputeGrowthMomentum(data.JobCountYoyGrowthPct);
+        kpi.SetGrowthMomentum(growthMomentum);
+
         // Confidence based on data volume and recency
         var confidence = ComputeDataConfidence(data.JobCount30d, data.SalaryDataPoints.Count, data.DataAgeHours);
         kpi.SetConfidence(confidence);
@@ -61,6 +65,14 @@ public class KpiComputationService
         var relativeDemand = Math.Min(jobCount / (double)baseline, 3.0);
         var score = relativeDemand * 3.0 + hiringVelocity * 7.0;
         return Math.Clamp(score, 0, 10);
+    }
+
+    // Maps YoY job-count growth % to a 0–10 momentum score.
+    // 0% growth → 5.0 (neutral); ±30% growth → ±5 points from neutral.
+    private static double ComputeGrowthMomentum(double yoyGrowthPct)
+    {
+        var score = 5.0 + Math.Clamp(yoyGrowthPct / 6.0, -5.0, 5.0);
+        return Math.Round(score, 2);
     }
 
     private static double ComputeAIRisk(double automationProb, double commoditizationIndex)
