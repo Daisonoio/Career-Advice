@@ -161,18 +161,38 @@ public class SkillPrioritizationService
         if (!RoleRequiredSkills.TryGetValue(targetRole, out var required))
             return [];
 
+        return PrioritizeSkillList(
+            required,
+            userSkillCanonicals,
+            FoundationCount.GetValueOrDefault(targetRole, 4),
+            roleDemandScore,
+            roleGrowthMomentum,
+            roleAiRisk);
+    }
+
+    // Same computation as Prioritize(), but against an arbitrary required-skill list
+    // instead of one of the fixed roles above — used for skills extracted from a
+    // specific job posting rather than a generic target role.
+    public List<PrioritizedSkillGap> PrioritizeSkillList(
+        List<string> requiredSkillCanonicals,
+        IEnumerable<string> userSkillCanonicals,
+        int foundationCount       = 4,
+        double roleDemandScore    = 7.0,
+        double roleGrowthMomentum = 7.0,
+        double roleAiRisk         = 3.0)
+    {
         var userSet = userSkillCanonicals
             .Select(s => s.ToLowerInvariant())
             .ToHashSet();
 
-        var foundationLimit = FoundationCount.GetValueOrDefault(targetRole, 4);
-        var premiumStart    = required.Count - PremiumTailCount;
+        var foundationLimit = Math.Min(foundationCount, requiredSkillCanonicals.Count);
+        var premiumStart    = requiredSkillCanonicals.Count - PremiumTailCount;
         var gaps            = new List<PrioritizedSkillGap>();
 
-        for (var i = 0; i < required.Count; i++)
+        for (var i = 0; i < requiredSkillCanonicals.Count; i++)
         {
-            var canonical = required[i];
-            if (userSet.Contains(canonical)) continue;
+            var canonical = requiredSkillCanonicals[i];
+            if (userSet.Contains(canonical.ToLowerInvariant())) continue;
 
             var type = i < foundationLimit             ? "Foundation"
                      : i >= premiumStart               ? "Premium"

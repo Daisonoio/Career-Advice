@@ -13,6 +13,9 @@ public interface IAIOrchestrator
 
     /// <summary>Explains a specific recommendation using pre-computed KPIs passed as input.</summary>
     Task<string> ExplainRecommendationAsync(RecommendationExplainContext ctx, CancellationToken ct = default);
+
+    /// <summary>Extracts the technical skill labels required by a job posting. Text labelling only — never returns market numbers.</summary>
+    Task<List<string>> ExtractRequiredSkillsAsync(string jobTitle, string jobDescription, CancellationToken ct = default);
 }
 
 public record AssessmentQuestionContext(

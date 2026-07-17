@@ -23,6 +23,7 @@ public class AssessmentConfiguration : IEntityTypeConfiguration<Assessment>
         builder.Property(a => a.CurrentLayer).IsRequired();
         builder.Property(a => a.CompletedAt);
         builder.Property(a => a.AbandonedAt);
+        builder.Property(a => a.JobApplicationId);
 
         builder.HasOne<User>()
             .WithMany(u => u.Assessments)
