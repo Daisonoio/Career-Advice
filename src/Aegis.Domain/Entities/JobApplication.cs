@@ -62,4 +62,15 @@ public class JobApplication : Entity
         ScoredAt = DateTime.UtcNow;
         Touch();
     }
+
+    // Called when the linked assessment is abandoned before completion, so the
+    // job application isn't stuck in TestInProgress forever with no way to retry.
+    public void RevertTestInProgress()
+    {
+        if (Status != JobApplicationStatus.TestInProgress) return;
+
+        AssessmentId = null;
+        Status = JobApplicationStatus.Analyzed;
+        Touch();
+    }
 }

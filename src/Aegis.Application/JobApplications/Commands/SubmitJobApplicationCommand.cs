@@ -68,8 +68,12 @@ public class SubmitJobApplicationCommandHandler : IRequestHandler<SubmitJobAppli
         var requiredSkills = new List<JobRequiredSkill>();
         foreach (var label in extractedLabels.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var matches = await _skillRepository.SearchByNameAsync(label, limit: 1, ct: cancellationToken);
-            var match = matches.FirstOrDefault();
+            // SearchByNameAsync is a substring ILIKE match (also used for autocomplete),
+            // not an exact resolver — with several candidates it can return the wrong
+            // one (e.g. "SQL" matching "PostgreSQL" before "SQL Server"). Disambiguate
+            // deterministically instead of blindly trusting the first alphabetical hit.
+            var matches = await _skillRepository.SearchByNameAsync(label, limit: 10, ct: cancellationToken);
+            var match = PickBestMatch(matches, label);
             var canonical = match?.CanonicalName ?? Slugify(label);
             var displayName = match?.Name ?? label;
 
@@ -94,6 +98,26 @@ public class SubmitJobApplicationCommandHandler : IRequestHandler<SubmitJobAppli
             RequiredSkills: requiredSkills
                 .Select(s => new RequiredSkillDto(s.SkillName, s.SkillCanonical, s.MatchedToProfile))
                 .ToList());
+    }
+
+    // Prefers an exact name match, then a name that starts with the label (shortest
+    // first), falling back to the shortest overall match among the ILIKE hits.
+    private static Domain.Entities.Skill? PickBestMatch(List<Domain.Entities.Skill> matches, string label)
+    {
+        if (matches.Count <= 1) return matches.FirstOrDefault();
+
+        var exact = matches.FirstOrDefault(s =>
+            string.Equals(s.Name, label, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(s.CanonicalName, label, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null) return exact;
+
+        var startsWith = matches
+            .Where(s => s.Name.StartsWith(label, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.Name.Length)
+            .FirstOrDefault();
+        if (startsWith is not null) return startsWith;
+
+        return matches.OrderBy(s => s.Name.Length).First();
     }
 
     private static string Slugify(string label)
