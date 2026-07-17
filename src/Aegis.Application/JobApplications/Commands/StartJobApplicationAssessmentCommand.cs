@@ -69,7 +69,7 @@ public class StartJobApplicationAssessmentCommandHandler
             ?? requiredSkills.FirstOrDefault()?.SkillName
             ?? jobApplication.JobTitle;
 
-        var assessment = Assessment.Start(request.UserId, jobApplication.Id);
+        var assessment = Aegis.Domain.Entities.Assessment.Start(request.UserId, jobApplication.Id);
         await _assessmentRepository.AddAsync(assessment, cancellationToken);
 
         var ctx = new AssessmentQuestionContext(
