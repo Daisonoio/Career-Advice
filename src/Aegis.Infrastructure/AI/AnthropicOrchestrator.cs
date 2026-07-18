@@ -123,6 +123,33 @@ public class AnthropicOrchestrator : IAIOrchestrator
             ct: ct);
     }
 
+    public async Task<List<string>> ExtractRequiredSkillsAsync(
+        string jobTitle, string jobDescription, CancellationToken ct = default)
+    {
+        var response = await CallAsync(
+            system: """
+                Extract the technical skills required by this job posting.
+                Return JSON only: {"skills": ["skill1", "skill2", ...]}
+                Use short, specific technology/skill names (e.g. "Kubernetes", "C#", "AWS").
+                Only include skills actually mentioned or clearly implied as required. Max 20 skills.
+                No extra text.
+                """,
+            prompt: $"Job Title: {jobTitle}\n\nJob Description:\n{jobDescription}",
+            maxTokens: 600,
+            ct: ct);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(response);
+            return ParseStringList(doc.RootElement, "skills");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse LLM skill extraction response, returning empty list");
+            return [];
+        }
+    }
+
     private async Task<string> CallAsync(string system, string prompt, int maxTokens, CancellationToken ct)
     {
         var request = new MessageParameters

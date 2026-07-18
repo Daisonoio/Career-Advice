@@ -2,10 +2,13 @@ using Aegis.Application.Assessment.DTOs;
 using Aegis.Application.Assessment.Services;
 using Aegis.Application.Common.Exceptions;
 using Aegis.Application.Interfaces;
+using Aegis.Application.Recommendations.Services;
 using Aegis.Domain.Entities;
 using Aegis.Domain.Interfaces;
+using Aegis.Domain.ValueObjects;
 using FluentValidation;
 using MediatR;
+using System.Text.Json;
 
 namespace Aegis.Application.Assessment.Commands;
 
@@ -29,22 +32,28 @@ public class SubmitAnswerCommandHandler : IRequestHandler<SubmitAnswerCommand, A
 {
     private readonly IAssessmentRepository _assessmentRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IJobApplicationRepository _jobApplicationRepository;
     private readonly IAIOrchestrator _aiOrchestrator;
     private readonly SeniorityScorer _seniorityScorer;
     private readonly AdaptiveInterviewService _adaptiveService;
+    private readonly SkillPrioritizationService _skillPrioritization;
 
     public SubmitAnswerCommandHandler(
         IAssessmentRepository assessmentRepository,
         IUserRepository userRepository,
+        IJobApplicationRepository jobApplicationRepository,
         IAIOrchestrator aiOrchestrator,
         SeniorityScorer seniorityScorer,
-        AdaptiveInterviewService adaptiveService)
+        AdaptiveInterviewService adaptiveService,
+        SkillPrioritizationService skillPrioritization)
     {
         _assessmentRepository = assessmentRepository;
         _userRepository = userRepository;
+        _jobApplicationRepository = jobApplicationRepository;
         _aiOrchestrator = aiOrchestrator;
         _seniorityScorer = seniorityScorer;
         _adaptiveService = adaptiveService;
+        _skillPrioritization = skillPrioritization;
     }
 
     public async Task<AssessmentQuestionResponse> Handle(SubmitAnswerCommand request, CancellationToken cancellationToken)
@@ -97,11 +106,24 @@ public class SubmitAnswerCommandHandler : IRequestHandler<SubmitAnswerCommand, A
         if (nextStep.NextLayer > assessment.CurrentLayer)
             assessment.AdvanceToLayer(nextStep.NextLayer);
 
-        // Get profile for skill context
-        var profile = await _userRepository.GetProfileByUserIdAsync(request.UserId, cancellationToken);
-        var primarySkill = nextStep.TargetSkill
-            ?? profile?.Skills.FirstOrDefault(s => s.IsPrimary)?.Skill?.Name
-            ?? "Software Engineering";
+        // Job-targeted assessments cycle through the job's missing skills instead of
+        // the user's generic primary skill.
+        var jobTargetSkill = assessment.JobApplicationId.HasValue
+            ? await ResolveJobTargetSkillAsync(assessment, cancellationToken)
+            : null;
+
+        string primarySkill;
+        if (jobTargetSkill is not null)
+        {
+            primarySkill = jobTargetSkill;
+        }
+        else
+        {
+            var profile = await _userRepository.GetProfileByUserIdAsync(request.UserId, cancellationToken);
+            primarySkill = nextStep.TargetSkill
+                ?? profile?.Skills.FirstOrDefault(s => s.IsPrimary)?.Skill?.Name
+                ?? "Software Engineering";
+        }
 
         // Previous answers for context
         var previousAnswers = assessment.Questions
@@ -189,5 +211,72 @@ public class SubmitAnswerCommandHandler : IRequestHandler<SubmitAnswerCommand, A
             llmSummary: llmSummary);
 
         assessment.Complete(seniorityResult.Level, seniorityResult.Confidence, result);
+
+        if (assessment.JobApplicationId.HasValue)
+        {
+            try
+            {
+                await FinalizeJobApplicationScoringAsync(assessment, cancellationToken);
+            }
+            catch
+            {
+                // Non-critical — the job application keeps its pre-test estimate if this fails.
+            }
+        }
+    }
+
+    private async Task<string?> ResolveJobTargetSkillAsync(Domain.Entities.Assessment assessment, CancellationToken ct)
+    {
+        try
+        {
+            var jobApplication = await _jobApplicationRepository.GetByIdAsync(assessment.JobApplicationId!.Value, ct);
+            if (jobApplication is null) return null;
+
+            var requiredSkills = JsonSerializer.Deserialize<List<JobRequiredSkill>>(jobApplication.RequiredSkillsJson) ?? [];
+            var gapSkills = requiredSkills.Where(s => !s.MatchedToProfile).ToList();
+            if (gapSkills.Count == 0) gapSkills = requiredSkills;
+            if (gapSkills.Count == 0) return null;
+
+            var index = assessment.Questions.Count % gapSkills.Count;
+            return gapSkills[index].SkillName;
+        }
+        catch
+        {
+            // Non-critical — falls back to the profile-based skill selection.
+            return null;
+        }
+    }
+
+    // Blends the static profile/job skill overlap with the competency actually
+    // demonstrated across the targeted assessment — the "real scoring" for this job.
+    private async Task FinalizeJobApplicationScoringAsync(Domain.Entities.Assessment assessment, CancellationToken ct)
+    {
+        var jobApplication = await _jobApplicationRepository.GetByIdAsync(assessment.JobApplicationId!.Value, ct);
+        if (jobApplication is null) return;
+
+        var requiredSkills = JsonSerializer.Deserialize<List<JobRequiredSkill>>(jobApplication.RequiredSkillsJson) ?? [];
+        var requiredCanonicals = requiredSkills.Select(s => s.SkillCanonical).ToList();
+
+        var profile = await _userRepository.GetProfileByUserIdAsync(assessment.UserId, ct);
+        var userSkillCanonicals = profile?.Skills
+            .Select(s => s.Skill?.CanonicalName ?? string.Empty)
+            .Where(s => s.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var overlapCount = requiredCanonicals.Count(userSkillCanonicals.Contains);
+        var overlapPct = requiredCanonicals.Count > 0 ? (double)overlapCount / requiredCanonicals.Count : 0.5;
+
+        var testScores = assessment.Questions
+            .Where(q => q.EvaluatedScore.HasValue)
+            .Select(q => q.EvaluatedScore!.Value)
+            .ToList();
+        var testAvgScore = testScores.Count > 0 ? testScores.Average() : 0.0;
+
+        var matchScorePct = Math.Round((overlapPct * 0.5 + testAvgScore * 0.5) * 100, 1);
+        var gaps = _skillPrioritization.PrioritizeSkillList(requiredCanonicals, userSkillCanonicals);
+
+        jobApplication.CompleteScoring(matchScorePct, JsonSerializer.Serialize(gaps));
+        await _jobApplicationRepository.UpdateAsync(jobApplication, ct);
     }
 }

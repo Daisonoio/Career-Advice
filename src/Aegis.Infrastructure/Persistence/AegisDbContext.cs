@@ -22,6 +22,7 @@ public class AegisDbContext : DbContext
     public DbSet<RecommendationPath> RecommendationPaths => Set<RecommendationPath>();
     public DbSet<UserAlert> UserAlerts => Set<UserAlert>();
     public DbSet<UserMonitoringSnapshot> UserMonitoringSnapshots => Set<UserMonitoringSnapshot>();
+    public DbSet<JobApplication> JobApplications => Set<JobApplication>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

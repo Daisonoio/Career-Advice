@@ -10,13 +10,18 @@ public class Assessment : Entity
     public double? Confidence { get; private set; }
     public int CurrentLayer { get; private set; } = 1;
 
+    // Set when this assessment is a custom test targeted at a specific job
+    // application's missing skills, rather than the generic profile-driven flow.
+    public int? JobApplicationId { get; private set; }
+
     public IReadOnlyList<AssessmentQuestion> Questions => _questions.AsReadOnly();
     private readonly List<AssessmentQuestion> _questions = [];
     public AssessmentResult? Result { get; private set; }
 
     private Assessment() { }
 
-    public static Assessment Start(int userId) => new() { UserId = userId };
+    public static Assessment Start(int userId, int? jobApplicationId = null)
+        => new() { UserId = userId, JobApplicationId = jobApplicationId };
 
     public void AddQuestion(string questionText, int? skillId, int difficulty, int layer)
         => _questions.Add(AssessmentQuestion.Create(Id, questionText, skillId, difficulty, layer));

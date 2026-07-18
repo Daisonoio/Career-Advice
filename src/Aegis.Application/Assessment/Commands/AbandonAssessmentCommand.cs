@@ -10,10 +10,14 @@ public record AbandonAssessmentCommand(int UserId, int AssessmentId) : IRequest;
 public class AbandonAssessmentCommandHandler : IRequestHandler<AbandonAssessmentCommand>
 {
     private readonly IAssessmentRepository _assessmentRepository;
+    private readonly IJobApplicationRepository _jobApplicationRepository;
 
-    public AbandonAssessmentCommandHandler(IAssessmentRepository assessmentRepository)
+    public AbandonAssessmentCommandHandler(
+        IAssessmentRepository assessmentRepository,
+        IJobApplicationRepository jobApplicationRepository)
     {
         _assessmentRepository = assessmentRepository;
+        _jobApplicationRepository = jobApplicationRepository;
     }
 
     public async Task Handle(AbandonAssessmentCommand request, CancellationToken cancellationToken)
@@ -26,5 +30,16 @@ public class AbandonAssessmentCommandHandler : IRequestHandler<AbandonAssessment
 
         assessment.Abandon();
         await _assessmentRepository.UpdateAsync(assessment, cancellationToken);
+
+        // Un-stick the linked job application so the user can start a fresh test for it.
+        if (assessment.JobApplicationId.HasValue)
+        {
+            var jobApplication = await _jobApplicationRepository.GetByIdAsync(assessment.JobApplicationId.Value, cancellationToken);
+            if (jobApplication is not null)
+            {
+                jobApplication.RevertTestInProgress();
+                await _jobApplicationRepository.UpdateAsync(jobApplication, cancellationToken);
+            }
+        }
     }
 }
